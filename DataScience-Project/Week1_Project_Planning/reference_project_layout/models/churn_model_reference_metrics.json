@@ -1,0 +1,11 @@
+{
+  "model_type": "StackingEnsemble",
+  "roc_auc": 0.6269,
+  "optimal_threshold": 0.2086,
+  "precision_at_threshold": 0.3203,
+  "recall_at_threshold": 0.8102,
+  "f1_at_threshold": 0.4592,
+  "accuracy_at_threshold": 0.477,
+  "n_train": 4000,
+  "n_test": 1000
+}

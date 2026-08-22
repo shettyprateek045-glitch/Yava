@@ -1,0 +1,79 @@
+name: CI — Reproduce Pipeline & Run Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependency (Graphviz)
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-advanced.txt
+
+      - name: Week 1 — Generate dataset & diagrams
+        run: |
+          python Week1_Project_Planning/generate_dataset.py
+          python Week1_Project_Planning/setup_project_structure.py
+          python Week1_Project_Planning/diagrams.py
+
+      - name: Week 2 — EDA & visualizations
+        run: |
+          python Week2_EDA_Visualization/eda_analysis.py
+          python Week2_EDA_Visualization/diagrams.py
+
+      - name: Week 3 — Train model & evaluate
+        run: |
+          python Week3_ML_Model_Development/model_training.py
+          python Week3_ML_Model_Development/model_training_v2.py
+          python Week3_ML_Model_Development/diagrams.py
+          python Week3_ML_Model_Development/advanced_interpretability.py
+
+      - name: Week 3 — Run automated tests
+        run: |
+          cd Week3_ML_Model_Development
+          python -m unittest discover -s tests -v
+
+      - name: Control Center — Run API tests
+        run: |
+          pytest tests/test_api.py -v
+
+      - name: Reference layout — Run src/ package modules
+        run: |
+          cd Week1_Project_Planning
+          python -m reference_project_layout.src.data.make_dataset
+          python -m reference_project_layout.src.features.build_features
+          python -m reference_project_layout.src.models.train_model
+          python -m reference_project_layout.src.visualization.visualize
+
+      - name: Week 4 — Executive report & dashboard
+        run: |
+          python Week4_Report_Presentation/generate_report.py
+          python Week4_Report_Presentation/diagrams.py
+          python Week4_Report_Presentation/generate_dashboard.py
+
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-outputs
+          path: |
+            Week1_Project_Planning/data/
+            Week2_EDA_Visualization/outputs/
+            Week3_ML_Model_Development/outputs/
+            Week4_Report_Presentation/outputs/
+          retention-days: 14

@@ -1,0 +1,52 @@
+{
+  "best_model": "StackingEnsemble",
+  "best_params": {
+    "note": "stacking ensemble used as-is (base learners not individually re-tuned)"
+  },
+  "cv_roc_auc_all_candidates": {
+    "LogisticRegression": 0.6604673716983276,
+    "RandomForest": 0.6327176458103762,
+    "HistGradientBoosting": 0.6283536673918095,
+    "StackingEnsemble": 0.661014380633528
+  },
+  "test_metrics_default_threshold": {
+    "accuracy": 0.727,
+    "precision": 0.5185185185185185,
+    "recall": 0.051094890510948905,
+    "f1_score": 0.09302325581395349,
+    "roc_auc": 0.6269228449055921
+  },
+  "test_metrics_optimal_threshold": {
+    "threshold": 0.20592901308574635,
+    "accuracy": 0.472,
+    "precision": 0.31857142857142856,
+    "recall": 0.8138686131386861,
+    "f1_score": 0.45790554414784396
+  },
+  "v1_test_roc_auc_for_comparison": 0.6299893426635298,
+  "improvement_vs_v1": -0.0031,
+  "feature_columns": {
+    "numeric": [
+      "age",
+      "tenure_months",
+      "monthly_charge",
+      "avg_watch_hours_week",
+      "num_devices",
+      "support_tickets",
+      "days_since_last_login",
+      "charge_per_watch_hour",
+      "is_inactive",
+      "log_days_since_login",
+      "watch_hours_per_device",
+      "engagement_score",
+      "support_tenure_ratio"
+    ],
+    "categorical": [
+      "region",
+      "plan_type",
+      "contract_type",
+      "payment_method",
+      "tenure_bucket"
+    ]
+  }
+}

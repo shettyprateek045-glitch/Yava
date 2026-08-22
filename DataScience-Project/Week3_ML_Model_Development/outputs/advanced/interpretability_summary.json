@@ -1,0 +1,14 @@
+{
+  "top_permutation_features": {
+    "contract_type": 0.0389,
+    "tenure_months": 0.0341,
+    "days_since_last_login": 0.0317,
+    "support_tickets": 0.0142,
+    "avg_watch_hours_week": 0.0114
+  },
+  "threshold_optimization": {
+    "default_threshold_0.5_f1": 0.4457,
+    "optimal_threshold": 0.386,
+    "optimal_threshold_f1": 0.4612
+  }
+}

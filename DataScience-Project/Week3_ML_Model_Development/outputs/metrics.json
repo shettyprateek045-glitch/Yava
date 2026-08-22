@@ -1,0 +1,18 @@
+{
+  "best_model": "LogisticRegression",
+  "best_params": {
+    "model__C": 0.01
+  },
+  "cv_roc_auc": {
+    "LogisticRegression": 0.659702823834523,
+    "RandomForest": 0.6187377289094911,
+    "GradientBoosting": 0.6441246466027784
+  },
+  "test_metrics": {
+    "accuracy": 0.592,
+    "precision": 0.354978354978355,
+    "recall": 0.5985401459854015,
+    "f1_score": 0.44565217391304346,
+    "roc_auc": 0.6299893426635298
+  }
+}

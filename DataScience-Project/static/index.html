@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Retention Console — Churn Risk Control Center</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- =====================================================================
+     STYLES
+     Everything below is one design system for the "Retention Console".
+     It's a dark, instrument-panel look (dials, tick marks, mono numbers)
+     because this page is about *reading signals*, like a monitoring
+     station — not a generic colourful dashboard.
+     ===================================================================== -->
+<style>
+  /* ---- 1) DESIGN TOKENS -------------------------------------------------
+     Every colour/font/spacing value used anywhere on the page is defined
+     ONCE here as a CSS variable. If you ever want to re-theme the whole
+     console, this is the only block you need to touch. */
+  :root{
+    --bg-canvas: #0A0D12;        /* page background (dark graphite, not pure black) */
+    --bg-panel: #12161D;         /* card background */
+    --bg-panel-raised: #161B24;  /* input fields, chart tracks */
+    --bg-sidebar: #0D1015;
+    --border-hairline: #232933;
+    --border-hairline-soft: #1A1F28;
+
+    --text-primary: #EDEFF2;
+    --text-secondary: #8B93A3;
+    --text-tertiary: #5B6472;
+
+    /* Two accent colours with two different JOBS, not just decoration:
+       amber = "pay attention, this is risk"; cyan = "this is neutral data". */
+    --signal-amber: #E8A33D;
+    --signal-amber-dim: rgba(232,163,61,0.14);
+    --signal-danger: #E5574F;
+    --signal-danger-dim: rgba(229,87,79,0.14);
+    --signal-safe: #4FBF97;
+    --signal-safe-dim: rgba(79,191,151,0.14);
+    --data-cyan: #74C7D8;
+
+    --font-display: 'Space Grotesk', sans-serif; /* headings */
+    --font-body: 'Inter', sans-serif;             /* paragraphs, labels, buttons */
+    --font-mono: 'IBM Plex Mono', monospace;      /* every NUMBER on the page */
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --sidebar-w: 248px;
+  }
+
+  /* ---- 2) BASE RESET ----------------------------------------------------*/
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2{ font-family: var(--font-display); font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  p{ color: var(--text-secondary); }
+  code{ font-family: var(--font-mono); background: var(--bg-panel-raised); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; color: var(--data-cyan); }
+  :focus-visible{ outline: 2px solid var(--data-cyan); outline-offset: 2px; } /* keyboard users can see what's focused */
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+  /* ---- 3) PAGE SHELL: sidebar + main column -----------------------------
+     .app-shell is a flex row: [ sidebar | main-col ].
+     On phones (see the @media query near the bottom) this flips to a
+     column and the sidebar becomes a horizontal strip. */
+  .app-shell{ display:flex; min-height:100vh; }
+
+  /* ---- 3a) SIDEBAR -------------------------------------------------------*/
+  .sidebar{
+    width: var(--sidebar-w);
+    flex-shrink:0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-hairline);
+    display:flex;
+    flex-direction:column;
+    padding: 20px 14px;
+    position: sticky;
+    top:0;
+    height:100vh;
+  }
+  .sidebar-brand{ display:flex; align-items:center; gap:12px; padding: 6px 8px 22px; }
+  /* The rotating "radar sweep" mark: a small nod to "detecting churn
+     signals" — one deliberate animated flourish, kept small and quiet. */
+  .brand-mark{
+    width:34px; height:34px; border-radius:50%;
+    position:relative;
+    background:
+      radial-gradient(circle at center, rgba(232,163,61,0.25) 0%, transparent 60%),
+      conic-gradient(from 0deg, transparent 0deg, var(--signal-amber) 18deg, transparent 40deg);
+    border: 1px solid var(--border-hairline);
+    animation: sweep 3.6s linear infinite;
+  }
+  .brand-mark::after{
+    content:''; position:absolute; inset:9px; border-radius:50%;
+    background: var(--bg-sidebar); border: 1px solid var(--border-hairline-soft);
+  }
+  @keyframes sweep{ to{ transform: rotate(360deg); } }
+  .brand-title{ display:block; font-family: var(--font-display); font-weight:600; font-size:14.5px; }
+  .brand-sub{ display:block; font-size:11px; color: var(--text-tertiary); margin-top:1px; }
+
+  /* Sidebar navigation buttons — one per panel (Overview / Predictor / Health / About) */
+  .nav-list{ list-style:none; margin: 6px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; flex:1; }
+  .nav-item{
+    width:100%; display:flex; align-items:center; gap:10px;
+    background:transparent; border:none; color: var(--text-secondary);
+    font-family: var(--font-body); font-size:13.5px; font-weight:500;
+    padding:10px 12px; border-radius: var(--radius-sm); cursor:pointer;
+    text-align:left; transition: background .15s ease, color .15s ease;
+  }
+  .nav-item:hover{ background: var(--bg-panel-raised); color: var(--text-primary); }
+  .nav-item.is-active{ background: var(--signal-amber-dim); color: var(--signal-amber); }
+  .nav-icon{ width:16px; height:16px; flex-shrink:0; display:inline-block; position:relative; }
+  .nav-icon::before{ content:''; position:absolute; inset:0; border-radius:3px; border:1.5px solid currentColor; opacity:.9; }
+  .nav-icon[data-icon="grid"]::before{ border-radius:3px; }
+  .nav-icon[data-icon="target"]::before{ border-radius:50%; }
+  .nav-icon[data-icon="target"]::after{ content:''; position:absolute; inset:5px; border-radius:50%; background: currentColor; opacity:.8; }
+  .nav-icon[data-icon="pulse"]::before{ border-radius:2px; }
+  .nav-icon[data-icon="info"]::before{ border-radius:50%; }
+
+  .sidebar-footer{ padding-top:14px; border-top:1px solid var(--border-hairline-soft); display:flex; flex-direction:column; gap:10px; }
+  .api-status{ display:flex; align-items:center; gap:8px; font-size:12px; color: var(--text-tertiary); font-family: var(--font-mono); }
+  .status-dot{ width:8px; height:8px; border-radius:50%; background: var(--text-tertiary); flex-shrink:0; }
+  .status-dot.is-ok{ background: var(--signal-safe); box-shadow: 0 0 0 3px var(--signal-safe-dim); }
+  .status-dot.is-down{ background: var(--signal-danger); box-shadow: 0 0 0 3px var(--signal-danger-dim); }
+  .docs-link{ font-size:12px; color: var(--data-cyan); text-decoration:none; }
+  .docs-link:hover{ text-decoration:underline; }
+
+  /* ---- 3b) MAIN COLUMN ---------------------------------------------------*/
+  .main-col{ flex:1; min-width:0; display:flex; flex-direction:column; }
+
+  /* Persistent "this is a prototype" banner — always visible until the
+     user explicitly collapses it, on purpose (this warning matters). */
+  .synthetic-banner{
+    display:flex; align-items:flex-start; gap:10px;
+    background: var(--signal-amber-dim); border-bottom:1px solid rgba(232,163,61,0.3);
+    padding:10px 24px; font-size:12.5px;
+  }
+  .synthetic-banner p{ margin:0; color: #D9C4A0; flex:1; }
+  .synthetic-banner strong{ color: var(--signal-amber); }
+  .banner-icon{ color: var(--signal-amber); font-size:14px; line-height:1.4; }
+  .banner-dismiss{
+    background:transparent; border:1px solid rgba(232,163,61,0.4); color: var(--signal-amber);
+    font-family: var(--font-body); font-size:11.5px; padding:4px 10px; border-radius:5px; cursor:pointer; flex-shrink:0;
+  }
+  .banner-dismiss:hover{ background: rgba(232,163,61,0.18); }
+  .synthetic-banner.is-collapsed{ display:none; }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 18px 28px; border-bottom:1px solid var(--border-hairline-soft);
+  }
+  .topbar h1{ font-size:19px; }
+  .topbar-clock{ font-family: var(--font-mono); font-size:12px; color: var(--text-tertiary); }
+
+  .content{ padding: 24px 28px 60px; }
+  /* Only ONE .panel is shown at a time — app.js toggles `.is-active`
+     when you click a sidebar item. This is how the 4 "pages" work
+     without ever reloading the browser. */
+  .panel{ display:none; }
+  .panel.is-active{ display:block; animation: fadein .25s ease; }
+  @keyframes fadein{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform:none; } }
+
+  /* ---- 4) REUSABLE CARD / GRID PIECES ------------------------------------*/
+  .card{
+    background: var(--bg-panel); border:1px solid var(--border-hairline);
+    border-radius: var(--radius-md); padding:20px 22px;
+  }
+  .card h2{ font-size:15px; margin-bottom:4px; }
+  .card-sub{ font-size:12.5px; margin: 0 0 16px; color: var(--text-tertiary); }
+  .grid-2{ display:grid; grid-template-columns: 1.3fr 1fr; gap:18px; margin-top:18px; }
+  .grid-predictor{ display:grid; grid-template-columns: 1.15fr 0.85fr; gap:18px; }
+
+  /* KPI cards along the top of the Overview panel */
+  .kpi-row{ display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; }
+  .kpi-card{
+    background: var(--bg-panel); border:1px solid var(--border-hairline); border-radius: var(--radius-md);
+    padding:16px 18px; display:flex; flex-direction:column; gap:8px;
+  }
+  .kpi-label{ font-size:11.5px; color: var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; }
+  .kpi-value{ font-family: var(--font-mono); font-size:24px; font-weight:500; color: var(--text-primary); }
+  .kpi-card.kpi-warn .kpi-value{ color: var(--signal-amber); }
+  .kpi-card.kpi-danger .kpi-value{ color: var(--signal-danger); }
+
+  /* ---- 5) EXPOSURE BAR CHART (Overview panel) ---------------------------
+     Rendered as plain <div>s, not <canvas>/SVG, because it's just
+     horizontal bars — simplest possible thing that works, and it's easy
+     to read the exact HTML app.js is generating. */
+  .tabs-inline{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab-inline{
+    background:transparent; border:1px solid var(--border-hairline); color: var(--text-secondary);
+    font-family: var(--font-body); font-size:11.5px; padding:5px 10px; border-radius:20px; cursor:pointer;
+  }
+  .tab-inline.is-active{ background: var(--data-cyan); border-color: var(--data-cyan); color: #0A0D12; font-weight:600; }
+  .bar-chart{ display:flex; flex-direction:column; gap:10px; }
+  .bar-row{ display:grid; grid-template-columns: 108px 1fr 52px; align-items:center; gap:10px; }
+  .bar-row .bar-label{ font-size:12px; color: var(--text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+  .bar-track{ background: var(--bg-panel-raised); border-radius:4px; height:9px; overflow:hidden; }
+  .bar-fill{ height:100%; background: linear-gradient(90deg, var(--signal-amber), var(--signal-danger)); border-radius:4px; transition: width .5s ease; }
+  .bar-row .bar-value{ font-family: var(--font-mono); font-size:12px; text-align:right; color: var(--text-primary); }
+
+  /* ---- 6) REVENUE-AT-RISK DONUT (Overview panel) ------------------------
+     Drawn as an SVG <circle> with a stroke-dasharray trick: the visible
+     stroke length is set to (percentage-at-risk / 100) * full circumference. */
+  .risk-donut-wrap{ display:flex; align-items:center; gap:22px; }
+  .risk-donut{ width:150px; height:150px; flex-shrink:0; }
+  .donut-legend{ display:flex; flex-direction:column; gap:10px; font-size:12.5px; color: var(--text-secondary); }
+  .donut-legend strong{ font-family: var(--font-mono); color: var(--text-primary); display:block; font-size:15px; margin-top:2px; }
+  .legend-swatch{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; }
+  .legend-danger{ background: var(--signal-danger); }
+  .legend-safe{ background: var(--signal-safe); }
+
+  /* ---- 7) PREDICTOR PANEL ------------------------------------------------*/
+  .form-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:12px 14px; margin-bottom:18px; }
+  .form-grid label{ display:flex; flex-direction:column; gap:6px; font-size:12px; color: var(--text-secondary); }
+  .form-grid input, .form-grid select{
+    background: var(--bg-panel-raised); border:1px solid var(--border-hairline); color: var(--text-primary);
+    font-family: var(--font-body); font-size:13px; padding:8px 10px; border-radius: var(--radius-sm);
+  }
+  .form-grid input:focus, .form-grid select:focus{ border-color: var(--data-cyan); }
+  .btn-primary{
+    background: var(--signal-amber); color:#1A1408; border:none; font-family: var(--font-body); font-weight:600;
+    font-size:13.5px; padding:10px 20px; border-radius: var(--radius-sm); cursor:pointer; width:100%;
+  }
+  .btn-primary:hover{ filter: brightness(1.08); }
+  .btn-primary:disabled{ opacity:.6; cursor:progress; }
+  .form-error{ color: var(--signal-danger); font-size:12.5px; min-height:1.2em; margin: 10px 0 0; }
+
+  .gauge-card{ display:flex; flex-direction:column; }
+  .gauge-wrap{ position:relative; display:flex; flex-direction:column; align-items:center; margin: 6px 0 14px; }
+  .risk-gauge{ width:100%; max-width:260px; }
+  .gauge-readout{ display:flex; flex-direction:column; align-items:center; margin-top:-8px; }
+  .gauge-value{ font-family: var(--font-mono); font-size:30px; font-weight:500; color: var(--text-primary); }
+  .gauge-band{ font-size:12px; color: var(--text-tertiary); margin-top:2px; text-align:center; }
+  .gauge-meta{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:12px; }
+  .gauge-meta li{ display:flex; justify-content:space-between; color: var(--text-secondary); border-top:1px solid var(--border-hairline-soft); padding-top:8px; }
+  .gauge-meta li span:last-child{ font-family: var(--font-mono); color: var(--text-primary); }
+
+  /* ---- 8) MODEL HEALTH PANEL ---------------------------------------------*/
+  .stat-strip{ display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; margin-bottom:20px; }
+  .stat-cell{ background: var(--bg-panel); border:1px solid var(--border-hairline); border-radius: var(--radius-md); padding:14px 14px; }
+  .stat-label{ display:block; font-size:11px; color: var(--text-tertiary); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+  .stat-value{ display:block; font-family: var(--font-mono); font-size:19px; color: var(--data-cyan); }
+
+  .threshold-bar-wrap{ margin-top:16px; }
+  .threshold-bar{ position:relative; height:10px; background: var(--bg-panel-raised); border-radius:5px; overflow:visible; }
+  .threshold-fill{ position:absolute; inset:0; width:0%; background: linear-gradient(90deg, var(--signal-safe), var(--signal-amber)); border-radius:5px; transition: width .6s ease; }
+  .threshold-marker{ position:absolute; top:-4px; width:2px; height:18px; background: var(--text-primary); left:50%; transition: left .6s ease; }
+  .threshold-marker::after{ content:'threshold'; position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:10px; font-family: var(--font-mono); color: var(--text-secondary); white-space:nowrap; }
+  .threshold-labels{ display:flex; justify-content:space-between; font-size:11px; color: var(--text-tertiary); margin-top:10px; font-family: var(--font-mono); }
+
+  /* ---- 9) RESPONSIVE / MOBILE --------------------------------------------
+     Below 900px: 2-column grids become 1 column.
+     Below 720px: the sidebar itself becomes a horizontal top strip. */
+  @media (max-width: 900px){
+    .grid-2, .grid-predictor{ grid-template-columns: 1fr; }
+    .kpi-row{ grid-template-columns: repeat(2, 1fr); }
+    .stat-strip{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 720px){
+    .app-shell{ flex-direction:column; }
+    .sidebar{
+      width:100%; height:auto; position:sticky; top:0; z-index:10;
+      flex-direction:row; align-items:center; padding:10px 14px; overflow-x:auto;
+    }
+    .sidebar-brand{ padding: 2px 10px 2px 2px; flex-shrink:0; }
+    .nav-list{ flex-direction:row; flex:none; }
+    .nav-item span.nav-icon{ display:none; }
+    .sidebar-footer{ display:none; }
+    .content{ padding: 18px 16px 40px; }
+    .topbar{ padding: 14px 16px; }
+    .form-grid{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- =====================================================================
+       SIDEBAR — brand mark + 4 navigation buttons + API status footer.
+       Clicking a nav button doesn't reload the page; app.js just shows
+       the matching .panel below and hides the others.
+       ===================================================================== -->
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <span class="brand-title">Retention Console</span>
+        <span class="brand-sub">Churn Risk Control Center</span>
+      </div>
+    </div>
+
+    <ul class="nav-list" role="tablist">
+      <li><button class="nav-item is-active" data-target="panel-overview" role="tab" aria-selected="true">
+        <span class="nav-icon" data-icon="grid"></span> Overview
+      </button></li>
+      <li><button class="nav-item" data-target="panel-predictor" role="tab" aria-selected="false">
+        <span class="nav-icon" data-icon="target"></span> Risk Predictor
+      </button></li>
+      <li><button class="nav-item" data-target="panel-health" role="tab" aria-selected="false">
+        <span class="nav-icon" data-icon="pulse"></span> Model Health
+      </button></li>
+      <li><button class="nav-item" data-target="panel-about" role="tab" aria-selected="false">
+        <span class="nav-icon" data-icon="info"></span> About This Model
+      </button></li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <!-- app.js pings GET /health every 15s and flips this dot green/red -->
+      <div class="api-status" id="api-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Checking API…</span>
+      </div>
+      <a class="docs-link" href="/docs" target="_blank" rel="noopener">API Reference (Swagger) ↗</a>
+    </div>
+  </nav>
+
+  <!-- ======================= MAIN ======================= -->
+  <div class="main-col">
+
+    <div class="synthetic-banner" id="synthetic-banner">
+      <span class="banner-icon" aria-hidden="true">&#9888;</span>
+      <p><strong>Prototype trained on synthetic data.</strong> Every figure on this console is
+      generated from a synthetic dataset built for this project — no real subscriber records are
+      used anywhere here. Treat all outputs as illustrative, not production-ready retention
+      decisions.</p>
+      <button class="banner-dismiss" id="banner-dismiss" aria-label="Collapse notice">Collapse</button>
+    </div>
+
+    <header class="topbar">
+      <h1 id="topbar-title">Portfolio Overview</h1>
+      <span class="topbar-clock" id="topbar-clock"></span>
+    </header>
+
+    <main class="content">
+
+      <!-- =================================================================
+           PANEL 1 — OVERVIEW
+           Shows portfolio-wide numbers pulled from GET /portfolio:
+           4 KPI cards, a churn-by-segment bar chart, and a revenue donut.
+           ================================================================= -->
+      <section class="panel is-active" id="panel-overview">
+
+        <div class="kpi-row" id="kpi-row">
+          <div class="kpi-card"><span class="kpi-label">Total Customers</span><span class="kpi-value" id="kpi-total">—</span></div>
+          <div class="kpi-card kpi-warn"><span class="kpi-label">Churn Rate</span><span class="kpi-value" id="kpi-churn-rate">—</span></div>
+          <div class="kpi-card kpi-danger"><span class="kpi-label">Monthly Revenue at Risk</span><span class="kpi-value" id="kpi-revenue-risk">—</span></div>
+          <div class="kpi-card"><span class="kpi-label">Avg. Tenure</span><span class="kpi-value" id="kpi-tenure">—</span></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h2>Churn Exposure by Segment</h2>
+            <p class="card-sub">Share of each segment that churned in the training window.</p>
+            <!-- Clicking a tab re-renders the bar chart from a different
+                 field of the same /portfolio response (see app.js). -->
+            <div class="tabs-inline" id="exposure-tabs">
+              <button class="tab-inline is-active" data-series="churn_rate_by_plan">Plan</button>
+              <button class="tab-inline" data-series="churn_rate_by_contract">Contract</button>
+              <button class="tab-inline" data-series="churn_rate_by_region">Region</button>
+              <button class="tab-inline" data-series="churn_rate_by_engagement">Engagement</button>
+            </div>
+            <div class="bar-chart" id="exposure-chart"></div>
+          </div>
+
+          <div class="card">
+            <h2>Revenue at Risk</h2>
+            <p class="card-sub">Estimated monthly charge exposure from already-churned accounts in the dataset.</p>
+            <div class="risk-donut-wrap">
+              <svg id="revenue-donut" viewBox="0 0 200 200" class="risk-donut" role="img" aria-label="Revenue at risk donut chart"></svg>
+              <div class="donut-legend">
+                <div><span class="legend-swatch legend-danger"></span> At risk <strong id="legend-risk-pct">—</strong></div>
+                <div><span class="legend-swatch legend-safe"></span> Retained <strong id="legend-safe-pct">—</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           PANEL 2 — RISK PREDICTOR
+           A real form. Submitting it calls POST /predict with these exact
+           field names and shows the result on the SVG gauge to the right.
+           ================================================================= -->
+      <section class="panel" id="panel-predictor">
+        <div class="grid-predictor">
+
+          <form class="card form-card" id="predict-form">
+            <h2>Score a Customer</h2>
+            <p class="card-sub">Enter attributes for a hypothetical subscriber to get a live churn-risk score from the trained pipeline.</p>
+
+            <div class="form-grid">
+              <label>Age
+                <input type="number" name="age" min="13" max="100" value="34" required>
+              </label>
+              <label>Region
+                <select name="region">
+                  <option>North America</option><option>Europe</option>
+                  <option>Asia-Pacific</option><option>Latin America</option><option>Other</option>
+                </select>
+              </label>
+              <label>Plan Type
+                <select name="plan_type">
+                  <option>Basic</option><option>Standard</option><option>Premium</option>
+                </select>
+              </label>
+              <label>Contract Type
+                <select name="contract_type">
+                  <option>Monthly</option><option>Annual</option>
+                </select>
+              </label>
+              <label>Payment Method
+                <select name="payment_method">
+                  <option>Credit Card</option><option>PayPal</option>
+                  <option>Bank Transfer</option><option>Gift Card</option>
+                </select>
+              </label>
+              <label>Tenure (months)
+                <input type="number" name="tenure_months" min="0" max="200" value="12" required>
+              </label>
+              <label>Monthly Charge ($)
+                <input type="number" step="0.01" name="monthly_charge" min="0" value="13.99" required>
+              </label>
+              <label>Devices
+                <input type="number" name="num_devices" min="1" max="10" value="2" required>
+              </label>
+              <label>Avg. Watch Hrs / Week
+                <input type="number" step="0.1" name="avg_watch_hours_week" min="0" value="8" required>
+              </label>
+              <label>Support Tickets
+                <input type="number" name="support_tickets" min="0" value="0" required>
+              </label>
+              <label>Days Since Last Login
+                <input type="number" name="days_since_last_login" min="0" value="5" required>
+              </label>
+            </div>
+
+            <button type="submit" class="btn-primary">Predict Churn Risk</button>
+            <p class="form-error" id="predict-error"></p>
+          </form>
+
+          <div class="card gauge-card">
+            <h2>Risk Read-out</h2>
+            <p class="card-sub">The tick mark shows the model's actual decision threshold — the score doesn't just clear an arbitrary 50%.</p>
+            <div class="gauge-wrap">
+              <svg id="risk-gauge" viewBox="0 0 220 140" role="img" aria-label="Churn risk gauge"></svg>
+              <div class="gauge-readout">
+                <span class="gauge-value" id="gauge-value">—</span>
+                <span class="gauge-band" id="gauge-band">Enter attributes and predict</span>
+              </div>
+            </div>
+            <ul class="gauge-meta" id="gauge-meta"></ul>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- =================================================================
+           PANEL 3 — MODEL HEALTH
+           Pulled from GET /model-info: which model is live, its accuracy
+           numbers, and a visual explanation of the threshold choice.
+           ================================================================= -->
+      <section class="panel" id="panel-health">
+        <div class="stat-strip" id="stat-strip">
+          <div class="stat-cell"><span class="stat-label">Active Model</span><span class="stat-value" id="stat-model">—</span></div>
+          <div class="stat-cell"><span class="stat-label">ROC-AUC</span><span class="stat-value" id="stat-roc">—</span></div>
+          <div class="stat-cell"><span class="stat-label">Precision @ threshold</span><span class="stat-value" id="stat-precision">—</span></div>
+          <div class="stat-cell"><span class="stat-label">Recall @ threshold</span><span class="stat-value" id="stat-recall">—</span></div>
+          <div class="stat-cell"><span class="stat-label">F1 @ threshold</span><span class="stat-value" id="stat-f1">—</span></div>
+        </div>
+
+        <div class="card">
+          <h2>Why the Decision Threshold Matters</h2>
+          <p>At the default 0.5 cutoff, this model rarely predicts churn at all — recall collapses
+          to roughly 5%, meaning it misses nearly every customer who actually churns. Optimizing
+          the threshold for F1 instead lifts recall substantially, which matters here because in a
+          retention use case a missed churner is far costlier than one wasted outreach email. The
+          threshold shown below (and used throughout this console and the API) is that optimized
+          value — not 0.5.</p>
+          <div class="threshold-bar-wrap">
+            <div class="threshold-bar">
+              <div class="threshold-fill" id="threshold-fill"></div>
+              <div class="threshold-marker" id="threshold-marker"></div>
+            </div>
+            <div class="threshold-labels">
+              <span>0.0</span><span id="threshold-label-value">threshold</span><span>1.0</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           PANEL 4 — ABOUT
+           Static text, no API calls. Explains the model in plain language
+           for anyone (an evaluator, a recruiter) opening this cold.
+           ================================================================= -->
+      <section class="panel" id="panel-about">
+        <div class="card">
+          <h2>About This Model</h2>
+          <p>This console sits on top of a four-week churn-prediction project for a hypothetical
+          subscription streaming service. It scores the likelihood that an active subscriber
+          cancels, so a retention team can prioritize outreach toward the accounts most likely to
+          leave.</p>
+          <p><strong>Training data:</strong> a synthetic dataset generated for this project
+          (<code>Week1_Project_Planning/generate_dataset.py</code>) — not real subscriber
+          records, and not validated against real-world behavior.</p>
+          <p><strong>Intended use:</strong> a prioritization signal for a human retention team,
+          not an automated accept/reject system.</p>
+          <p>Full methodology, feature list, and an honest before/after comparison of the model
+          versions live in <code>MODEL_CARD.md</code> at the repository root. Known gaps and the
+          recommended next-stage build-out are documented in
+          <code>ADVANCED_VERSION.md</code>.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- =========================================================================
+     BEHAVIOR
+     Plain JavaScript, no build step, no framework — this whole file can be
+     opened and read top to bottom. It's organized into the same 6 jobs the
+     page needs to do:
+       1. Navigation between the 4 panels
+       2. A live clock in the top bar
+       3. Dismissing the synthetic-data banner
+       4. Checking whether the API is reachable (green/red dot)
+       5. Overview panel: fetch /portfolio, draw the bar chart + donut
+       6. Predictor panel: submit the form to /predict, animate the gauge
+       7. Model Health panel: fetch /model-info, fill in the stat cells
+     ========================================================================= -->
+<script>
+(function () {
+  "use strict";
+
+  // Shared place to stash whatever we've fetched from the API, so
+  // different render functions don't have to re-fetch the same data.
+  const state = { modelInfo: null, portfolio: null };
+
+  /* =====================================================================
+     1) NAVIGATION — clicking a sidebar button shows its matching panel
+        and hides the rest. No page reload, no routing library needed
+        for a 4-page app this size.
+     ===================================================================== */
+  const navItems = document.querySelectorAll(".nav-item");
+  const panels = document.querySelectorAll(".panel");
+  const topbarTitle = document.getElementById("topbar-title");
+  const TITLES = {
+    "panel-overview": "Portfolio Overview",
+    "panel-predictor": "Risk Predictor",
+    "panel-health": "Model Health",
+    "panel-about": "About This Model",
+  };
+
+  navItems.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target;
+      navItems.forEach((b) => {
+        b.classList.toggle("is-active", b === btn);
+        b.setAttribute("aria-selected", b === btn ? "true" : "false");
+      });
+      panels.forEach((p) => p.classList.toggle("is-active", p.id === target));
+      topbarTitle.textContent = TITLES[target] || "Retention Console";
+    });
+  });
+
+  /* =====================================================================
+     2) CLOCK — purely cosmetic, updates every second.
+     ===================================================================== */
+  const clockEl = document.getElementById("topbar-clock");
+  function tickClock() {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleString(undefined, {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      month: "short", day: "numeric",
+    });
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  /* =====================================================================
+     3) BANNER DISMISS
+     ===================================================================== */
+  document.getElementById("banner-dismiss").addEventListener("click", () => {
+    document.getElementById("synthetic-banner").classList.add("is-collapsed");
+  });
+
+  /* =====================================================================
+     4) API HEALTH CHECK
+        Calls GET /health. If it responds, the dot turns green; if the
+        fetch throws (server down, wrong port, CORS blocked, etc.) the
+        dot turns red. Runs once on load, then every 15 seconds.
+     ===================================================================== */
+  const statusDot = document.getElementById("status-dot");
+  const statusText = document.getElementById("status-text");
+
+  async function checkHealth() {
+    try {
+      const res = await fetch("/health");
+      if (!res.ok) throw new Error("bad status");
+      statusDot.className = "status-dot is-ok";
+      statusText.textContent = "API online";
+      return true;
+    } catch (err) {
+      statusDot.className = "status-dot is-down";
+      statusText.textContent = "API unreachable";
+      return false;
+    }
+  }
+
+  // Small formatting helpers used in a few places below.
+  const fmtInt = (n) => Number(n).toLocaleString();
+  const fmtPct = (n) => `${Number(n).toFixed(1)}%`;
+  const fmtMoney = (n) =>
+    `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  /* =====================================================================
+     5) OVERVIEW PANEL — portfolio KPIs, bar chart, donut
+     ===================================================================== */
+  function renderKpis(kpis) {
+    document.getElementById("kpi-total").textContent = fmtInt(kpis.total_customers);
+    document.getElementById("kpi-churn-rate").textContent = fmtPct(kpis.churn_rate_pct);
+    document.getElementById("kpi-revenue-risk").textContent = fmtMoney(kpis.monthly_revenue_at_risk);
+    document.getElementById("kpi-tenure").textContent = `${kpis.avg_tenure_months} mo`;
+  }
+
+  // Draws one horizontal bar per key in the chosen /portfolio field
+  // (e.g. churn_rate_by_plan = { "Basic": 34.2, "Standard": 27.1, ... }).
+  // Bars are scaled relative to the largest value in THIS series, so
+  // switching tabs (Plan/Contract/Region/Engagement) always fills the
+  // available width nicely instead of using one fixed 0-100 scale.
+  function renderExposureChart(seriesKey) {
+    const data = state.portfolio[seriesKey];
+    const container = document.getElementById("exposure-chart");
+    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(...entries.map(([, v]) => v), 1);
+    container.innerHTML = entries
+      .map(([label, value]) => {
+        const width = Math.min(100, (value / (max * 1.12)) * 100);
+        return `
+        <div class="bar-row">
+          <span class="bar-label" title="${label}">${label}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+          <span class="bar-value">${value.toFixed(1)}%</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  function initExposureTabs() {
+    const tabs = document.querySelectorAll("#exposure-tabs .tab-inline");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.classList.toggle("is-active", t === tab));
+        renderExposureChart(tab.dataset.series);
+      });
+    });
+  }
+
+  // The donut is one grey background ring plus one red ring drawn on top.
+  // The trick: an SVG circle's stroke-dasharray lets you say "draw N units
+  // of stroke, then leave the rest of the circle blank" — so setting N to
+  // (percent-at-risk / 100) * circumference draws exactly that slice.
+  function renderDonut(kpis) {
+    const pct = Math.max(0, Math.min(100, kpis.revenue_at_risk_pct));
+    const r = 80, cx = 100, cy = 100, circumference = 2 * Math.PI * r;
+    const dash = (pct / 100) * circumference;
+    const svg = document.getElementById("revenue-donut");
+    svg.innerHTML = `
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#1E2530" stroke-width="22"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#4FBF97" stroke-width="22"
+        stroke-dasharray="${circumference}" stroke-dashoffset="0" transform="rotate(-90 ${cx} ${cy})"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#E5574F" stroke-width="22"
+        stroke-dasharray="${dash} ${circumference}" stroke-dashoffset="0" stroke-linecap="round"
+        transform="rotate(-90 ${cx} ${cy})"/>
+      <text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="#EDEFF2" font-family="IBM Plex Mono" font-size="26" font-weight="500">${pct.toFixed(0)}%</text>
+      <text x="${cx}" y="${cy + 16}" text-anchor="middle" fill="#5B6472" font-family="Inter" font-size="10">at risk</text>
+    `;
+    document.getElementById("legend-risk-pct").textContent = fmtPct(pct);
+    document.getElementById("legend-safe-pct").textContent = fmtPct(100 - pct);
+  }
+
+  async function loadPortfolio() {
+    try {
+      const res = await fetch("/portfolio");
+      if (!res.ok) throw new Error("portfolio fetch failed");
+      const data = await res.json();
+      state.portfolio = data;
+      renderKpis(data.kpis);
+      renderExposureChart("churn_rate_by_plan");
+      renderDonut(data.kpis);
+    } catch (err) {
+      document.getElementById("exposure-chart").innerHTML =
+        `<p style="color:#E5574F;font-size:12.5px;">Couldn't reach the API. Make sure it's running (uvicorn api:app) and reload this page.</p>`;
+    }
+  }
+
+  /* =====================================================================
+     6) MODEL HEALTH PANEL
+     ===================================================================== */
+  function renderModelHealth(info) {
+    document.getElementById("stat-model").textContent = info.performance.model_type || info.model_version;
+    document.getElementById("stat-roc").textContent = info.performance.roc_auc?.toFixed(3) ?? "—";
+    document.getElementById("stat-precision").textContent = info.performance.precision_at_threshold?.toFixed(3) ?? "—";
+    document.getElementById("stat-recall").textContent = info.performance.recall_at_threshold?.toFixed(3) ?? "—";
+    document.getElementById("stat-f1").textContent = info.performance.f1_at_threshold?.toFixed(3) ?? "—";
+
+    // Position the threshold marker along the 0.0–1.0 bar by percentage.
+    const threshold = info.decision_threshold;
+    const pct = threshold * 100;
+    document.getElementById("threshold-fill").style.width = `${pct}%`;
+    document.getElementById("threshold-marker").style.left = `${pct}%`;
+    document.getElementById("threshold-label-value").textContent = threshold.toFixed(3);
+  }
+
+  async function loadModelInfo() {
+    try {
+      const res = await fetch("/model-info");
+      if (!res.ok) throw new Error("model-info fetch failed");
+      const info = await res.json();
+      state.modelInfo = info;
+      renderModelHealth(info);
+      populateGaugeMeta(info);
+    } catch (err) {
+      /* Health panel just keeps its placeholder dashes; the predictor
+         panel will show its own error the moment someone tries to use it. */
+    }
+  }
+
+  function populateGaugeMeta(info) {
+    const list = document.getElementById("gauge-meta");
+    list.innerHTML = `
+      <li><span>Active model</span><span>${info.performance.model_type || info.model_version}</span></li>
+      <li><span>Decision threshold</span><span>${info.decision_threshold.toFixed(3)}</span></li>
+      <li><span>Trained on</span><span>synthetic data</span></li>
+    `;
+  }
+
+  /* =====================================================================
+     7) RISK GAUGE — an SVG semicircle "instrument dial"
+        - The dial always spans 180° (left) to 0° (right) for values 0→1.
+        - It's drawn in 3 coloured arcs: safe / moderate / high, split at
+          the SAME cutoffs the backend uses (moderate = threshold * 0.6).
+        - A small tick mark on the dial shows exactly where the threshold
+          sits — that's the whole point of this widget: showing that the
+          model isn't just using a generic 50% cutoff.
+        - The needle rotates to point at whatever probability came back
+          from /predict.
+     ===================================================================== */
+  function polarToCartesian(cx, cy, r, angleDeg) {
+    const rad = ((angleDeg - 180) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+  // Maps a probability (0 to 1) to a dial angle: 0 -> 180° (pointing left),
+  // 1 -> 0° (pointing right).
+  function valueToAngle(v) {
+    return 180 - Math.max(0, Math.min(1, v)) * 180;
+  }
+  function arcPath(cx, cy, r, startVal, endVal) {
+    const a0 = valueToAngle(startVal), a1 = valueToAngle(endVal);
+    const p0 = polarToCartesian(cx, cy, r, a0);
+    const p1 = polarToCartesian(cx, cy, r, a1);
+    const largeArc = Math.abs(a0 - a1) > 180 ? 1 : 0;
+    return `M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 0 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+  }
+
+  // Draws the static parts of the dial (coloured arcs + threshold tick)
+  // once we know the real threshold. Called once, right after /model-info
+  // comes back, so the dial is correct even before anyone predicts anything.
+  function drawGaugeBase(threshold) {
+    const svg = document.getElementById("risk-gauge");
+    const cx = 110, cy = 120, r = 90;
+    const moderateCutoff = threshold * 0.6; // must match api.py's _risk_band()
+    const safeArc = arcPath(cx, cy, r, 0, moderateCutoff);
+    const modArc = arcPath(cx, cy, r, moderateCutoff, threshold);
+    const dangerArc = arcPath(cx, cy, r, threshold, 1);
+    const tick = polarToCartesian(cx, cy, r + 12, valueToAngle(threshold));
+    const tickInner = polarToCartesian(cx, cy, r - 8, valueToAngle(threshold));
+
+    svg.innerHTML = `
+      <path d="${safeArc}" fill="none" stroke="#4FBF97" stroke-width="14" stroke-linecap="butt"/>
+      <path d="${modArc}" fill="none" stroke="#E8A33D" stroke-width="14" stroke-linecap="butt"/>
+      <path d="${dangerArc}" fill="none" stroke="#E5574F" stroke-width="14" stroke-linecap="butt"/>
+      <line x1="${tick.x.toFixed(2)}" y1="${tick.y.toFixed(2)}" x2="${tickInner.x.toFixed(2)}" y2="${tickInner.y.toFixed(2)}"
+        stroke="#EDEFF2" stroke-width="2.5"/>
+      <line id="gauge-needle" x1="${cx}" y1="${cy}" x2="${cx - r + 20}" y2="${cy}"
+        stroke="#EDEFF2" stroke-width="3" stroke-linecap="round"
+        transform="rotate(0 ${cx} ${cy})"/>
+      <circle cx="${cx}" cy="${cy}" r="7" fill="#EDEFF2"/>
+      <circle cx="${cx}" cy="${cy}" r="3" fill="#0A0D12"/>
+    `;
+  }
+
+  // Rotates just the needle line to point at a new probability, using an
+  // SVG transform="rotate(angle cx cy)" around the pivot point.
+  function setGaugeNeedle(value) {
+    const needle = document.getElementById("gauge-needle");
+    if (!needle) return;
+    const angle = valueToAngle(value) - 180; // needle is drawn pointing left (0) by default
+    needle.setAttribute("transform", `rotate(${angle} 110 120)`);
+  }
+
+  /* =====================================================================
+     8) PREDICTOR FORM SUBMIT
+        Reads every field from the form, builds the exact JSON shape
+        api.py's CustomerFeatures model expects, POSTs it to /predict,
+        and updates the gauge + meta list with the response.
+     ===================================================================== */
+  const form = document.getElementById("predict-form");
+  const errorEl = document.getElementById("predict-error");
+  const gaugeValue = document.getElementById("gauge-value");
+  const gaugeBand = document.getElementById("gauge-band");
+
+  const BAND_STYLE = {
+    High: { color: "#E5574F", label: "High risk — above the optimized threshold" },
+    Moderate: { color: "#E8A33D", label: "Moderate risk — worth monitoring" },
+    Low: { color: "#4FBF97", label: "Low risk" },
+  };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault(); // don't let the browser do a full-page form submit
+    errorEl.textContent = "";
+    const submitBtn = form.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Scoring…";
+
+    const fd = new FormData(form);
+    const payload = {
+      age: Number(fd.get("age")),
+      region: fd.get("region"),
+      tenure_months: Number(fd.get("tenure_months")),
+      plan_type: fd.get("plan_type"),
+      contract_type: fd.get("contract_type"),
+      payment_method: fd.get("payment_method"),
+      monthly_charge: Number(fd.get("monthly_charge")),
+      avg_watch_hours_week: Number(fd.get("avg_watch_hours_week")),
+      num_devices: Number(fd.get("num_devices")),
+      support_tickets: Number(fd.get("support_tickets")),
+      days_since_last_login: Number(fd.get("days_since_last_login")),
+    };
+
+    try {
+      const res = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        // FastAPI/pydantic validation errors come back as {"detail": ...}
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `Request failed (${res.status})`);
+      }
+      const result = await res.json();
+      setGaugeNeedle(result.churn_probability);
+      gaugeValue.textContent = `${(result.churn_probability * 100).toFixed(1)}%`;
+      const style = BAND_STYLE[result.risk_band] || BAND_STYLE.Low;
+      gaugeBand.textContent = style.label;
+      gaugeBand.style.color = style.color;
+      document.getElementById("gauge-meta").innerHTML = `
+        <li><span>Model version</span><span>${result.model_version}</span></li>
+        <li><span>Decision threshold</span><span>${result.decision_threshold.toFixed(3)}</span></li>
+        <li><span>Flagged as risk</span><span>${result.would_flag_as_churn_risk ? "yes" : "no"}</span></li>
+      `;
+    } catch (err) {
+      errorEl.textContent = err.message || "Couldn't reach the prediction API.";
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Predict Churn Risk";
+    }
+  });
+
+  /* =====================================================================
+     9) BOOT SEQUENCE — runs once when the page loads:
+        check API health -> load model info (draws the gauge dial) ->
+        load portfolio data (fills KPIs/chart/donut) -> start polling
+        health every 15s so the sidebar dot stays accurate.
+     ===================================================================== */
+  async function boot() {
+    initExposureTabs();
+    const online = await checkHealth();
+    if (online) {
+      await loadModelInfo();
+      const threshold = state.modelInfo ? state.modelInfo.decision_threshold : 0.5;
+      drawGaugeBase(threshold);
+      await loadPortfolio();
+    } else {
+      drawGaugeBase(0.5);
+      document.getElementById("exposure-chart").innerHTML =
+        `<p style="color:#E5574F;font-size:12.5px;">API unreachable. Start it with: uvicorn api:app --reload --port 8000</p>`;
+    }
+    setInterval(checkHealth, 15000);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
