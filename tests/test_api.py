@@ -167,3 +167,65 @@ def test_portfolio_shape_and_ranges():
 def test_cors_headers_present_for_cross_origin_request():
     res = client.get("/health", headers={"Origin": "http://localhost:5500"})
     assert res.headers.get("access-control-allow-origin") == "*"
+
+# ------------------------------------------------------------- Explainability & CLV
+@requires_model
+def test_predict_explainability_and_clv():
+    res = client.post("/predict", json=VALID_CUSTOMER)
+    assert res.status_code == 200
+    body = res.json()
+    assert "top_risk_factors" in body
+    assert "prescriptive_recommendations" in body
+    assert "customer_lifetime_value_at_risk" in body
+    assert body["customer_lifetime_value_at_risk"] == pytest.approx(VALID_CUSTOMER["monthly_charge"] * 12, rel=1e-2)
+    assert len(body["top_risk_factors"]) > 0
+    assert len(body["prescriptive_recommendations"]) > 0
+
+
+# ----------------------------------------------------------------- What-If Simulation
+@requires_model
+def test_simulation_endpoint():
+    high_risk = dict(VALID_CUSTOMER, days_since_last_login=65, support_tickets=4, contract_type="Monthly")
+    sim_payload = {
+        "customer": high_risk,
+        "switch_to_annual": True,
+        "reduce_inactivity_to_days": 1,
+        "boost_watch_hours": 8.0,
+        "resolve_support_tickets": True,
+    }
+    res = client.post("/simulate", json=sim_payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["simulated_probability"] < body["baseline_probability"]
+    assert body["risk_reduction_pct"] > 0
+    assert len(body["interventions_applied"]) > 0
+
+
+# ------------------------------------------------------------ SQLite Prediction History
+@requires_model
+def test_prediction_history_sqlite():
+    client.delete("/predictions/history")
+    client.post("/predict", json=VALID_CUSTOMER)
+    res = client.get("/predictions/history")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["count"] >= 1
+    assert "churn_probability" in body["history"][0]
+    assert "top_risk_factor" in body["history"][0]
+
+
+# ---------------------------------------------------------------- Batch CSV Scoring
+@requires_model
+def test_predict_csv_upload():
+    csv_content = (
+        "age,tenure_months,monthly_charge,avg_watch_hours_week,num_devices,support_tickets,days_since_last_login,plan_type,contract_type,payment_method,region\n"
+        "28,12,14.99,10.5,2,1,5,Standard,Monthly,Credit Card,North America\n"
+        "45,2,19.99,1.0,1,4,75,Premium,Monthly,PayPal,Europe\n"
+    )
+    files = {"file": ("subscribers.csv", csv_content.encode("utf-8"), "text/csv")}
+    res = client.post("/predict/csv", files=files)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total_rows"] == 2
+    assert "revenue_at_risk" in body
+    assert len(body["preview"]) == 2
