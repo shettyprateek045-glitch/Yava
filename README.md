@@ -2,7 +2,7 @@
   Replace <github-username>/<repo-name> below once this is pushed to GitHub
   so the CI badge points at your actual Actions run.
 -->
-[![CI](https://github.com/<github-username>/<repo-name>/actions/workflows/ci.yml/badge.svg)](https://github.com/<github-username>/<repo-name>/actions/workflows/ci.yml)
+[![CI](https://github.com/shettyprateek045-glitch/Yava/actions/workflows/ci.yml/badge.svg)](https://github.com/shettyprateek045-glitch/Yava/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -102,8 +102,8 @@ The takeaway from v1 → v2 is **not** a big accuracy jump — this synthetic da
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/<github-username>/<repo-name>.git
-cd DataScience-Project
+git clone https://github.com/shettyprateek045-glitch/Yava.git
+cd Yava
 pip install -r requirements.txt -r requirements-advanced.txt
 
 # 2. Reproduce the full four-week pipeline (dataset → EDA → model → report)
