@@ -1,0 +1,884 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Streaming Service Churn \u2014 Control Center API",
+    "description": "Serves the trained churn-prediction pipeline, prescriptive action engine, what-if simulations, and audit history behind the advanced control-center UI.",
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/model-info": {
+      "get": {
+        "summary": "Which model is live, and how good is it",
+        "operationId": "model_info_model_info_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict": {
+      "post": {
+        "summary": "Score one customer with explainability",
+        "operationId": "predict_predict_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerFeatures"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict/batch": {
+      "post": {
+        "summary": "Score many customers at once",
+        "operationId": "predict_batch_predict_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/CustomerFeatures"
+                },
+                "type": "array",
+                "title": "Customers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PredictionResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Predict Batch Predict Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/simulate": {
+      "post": {
+        "summary": "What-if retention scenario simulation",
+        "description": "Simulates the impact of retention interventions (e.g., Annual plan upgrade,\nre-engaging inactivity, resolving support tickets) on churn probability.",
+        "operationId": "simulate_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predictions/history": {
+      "get": {
+        "summary": "View SQLite audit trail of scored customers",
+        "operationId": "prediction_history_predictions_history_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "risk_band",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Risk Band"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Clear SQLite audit trail",
+        "operationId": "clear_prediction_history_predictions_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict/csv": {
+      "post": {
+        "summary": "Upload CSV file and score all subscribers",
+        "operationId": "predict_csv_predict_csv_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_predict_csv_predict_csv_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portfolio": {
+      "get": {
+        "summary": "Dataset-wide KPIs for the Overview panel",
+        "operationId": "portfolio_portfolio_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/monitoring/drift": {
+      "get": {
+        "summary": "Model drift & feature distribution shift analysis",
+        "description": "Compares feature distributions of live scoring requests against the training baseline.",
+        "operationId": "monitoring_drift_monitoring_drift_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/predict/compare": {
+      "post": {
+        "summary": "Compare v1 Baseline vs v2 Ensemble on one customer",
+        "description": "Scores a single customer under both v1 (Logistic Regression) and v2 (Stacking Ensemble)\nside-by-side to detect algorithm divergence.",
+        "operationId": "predict_compare_predict_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerFeatures"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelComparisonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/retention/roi": {
+      "post": {
+        "summary": "Business retention campaign ROI calculator",
+        "description": "Calculates projected gross ARR saved, campaign costs, and net ROI multiplier\nbased on the model's flagged candidate volume and retention outreach success rates.",
+        "operationId": "calculate_retention_roi_retention_roi_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ROIRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ROIResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_predict_csv_predict_csv_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_predict_csv_predict_csv_post"
+      },
+      "CustomerFeatures": {
+        "properties": {
+          "age": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 13.0,
+            "title": "Age"
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "North America",
+              "Europe",
+              "Asia-Pacific",
+              "Latin America",
+              "Other"
+            ],
+            "title": "Region",
+            "default": "North America"
+          },
+          "tenure_months": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Tenure Months"
+          },
+          "plan_type": {
+            "type": "string",
+            "enum": [
+              "Basic",
+              "Standard",
+              "Premium"
+            ],
+            "title": "Plan Type",
+            "default": "Standard"
+          },
+          "contract_type": {
+            "type": "string",
+            "enum": [
+              "Monthly",
+              "Annual"
+            ],
+            "title": "Contract Type",
+            "default": "Monthly"
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": [
+              "Credit Card",
+              "PayPal",
+              "Bank Transfer",
+              "Gift Card"
+            ],
+            "title": "Payment Method",
+            "default": "Credit Card"
+          },
+          "monthly_charge": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Monthly Charge"
+          },
+          "avg_watch_hours_week": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Avg Watch Hours Week"
+          },
+          "num_devices": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Num Devices"
+          },
+          "support_tickets": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Support Tickets"
+          },
+          "days_since_last_login": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Days Since Last Login"
+          }
+        },
+        "type": "object",
+        "required": [
+          "age",
+          "tenure_months",
+          "monthly_charge",
+          "avg_watch_hours_week",
+          "num_devices",
+          "support_tickets",
+          "days_since_last_login"
+        ],
+        "title": "CustomerFeatures",
+        "example": {
+          "age": 34,
+          "avg_watch_hours_week": 1.2,
+          "contract_type": "Monthly",
+          "days_since_last_login": 45,
+          "monthly_charge": 12.99,
+          "num_devices": 1,
+          "payment_method": "Credit Card",
+          "plan_type": "Basic",
+          "region": "North America",
+          "support_tickets": 3,
+          "tenure_months": 4
+        }
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ModelComparisonResponse": {
+        "properties": {
+          "v1_baseline": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "V1 Baseline"
+          },
+          "v2_ensemble": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "V2 Ensemble"
+          },
+          "models_agree_on_risk": {
+            "type": "boolean",
+            "title": "Models Agree On Risk"
+          },
+          "risk_delta": {
+            "type": "number",
+            "title": "Risk Delta"
+          },
+          "divergence_explanation": {
+            "type": "string",
+            "title": "Divergence Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "v1_baseline",
+          "v2_ensemble",
+          "models_agree_on_risk",
+          "risk_delta",
+          "divergence_explanation"
+        ],
+        "title": "ModelComparisonResponse"
+      },
+      "PredictionResponse": {
+        "properties": {
+          "churn_probability": {
+            "type": "number",
+            "title": "Churn Probability"
+          },
+          "risk_band": {
+            "type": "string",
+            "enum": [
+              "Low",
+              "Moderate",
+              "High"
+            ],
+            "title": "Risk Band"
+          },
+          "decision_threshold": {
+            "type": "number",
+            "title": "Decision Threshold"
+          },
+          "would_flag_as_churn_risk": {
+            "type": "boolean",
+            "title": "Would Flag As Churn Risk"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "customer_lifetime_value_at_risk": {
+            "type": "number",
+            "title": "Customer Lifetime Value At Risk",
+            "default": 0.0
+          },
+          "top_risk_factors": {
+            "items": {
+              "$ref": "#/components/schemas/RiskFactor"
+            },
+            "type": "array",
+            "title": "Top Risk Factors",
+            "default": []
+          },
+          "prescriptive_recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/PrescriptiveAction"
+            },
+            "type": "array",
+            "title": "Prescriptive Recommendations",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "churn_probability",
+          "risk_band",
+          "decision_threshold",
+          "would_flag_as_churn_risk",
+          "model_version"
+        ],
+        "title": "PredictionResponse"
+      },
+      "PrescriptiveAction": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "expected_risk_reduction": {
+            "type": "string",
+            "title": "Expected Risk Reduction"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "description",
+          "expected_risk_reduction"
+        ],
+        "title": "PrescriptiveAction"
+      },
+      "ROIRequest": {
+        "properties": {
+          "outreach_cost_per_customer": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Outreach Cost Per Customer",
+            "default": 12.0
+          },
+          "retention_success_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.05,
+            "title": "Retention Success Rate",
+            "default": 0.35
+          },
+          "campaign_budget": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 100.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Budget"
+          },
+          "target_plan": {
+            "type": "string",
+            "enum": [
+              "All",
+              "Basic",
+              "Standard",
+              "Premium"
+            ],
+            "title": "Target Plan",
+            "default": "All"
+          }
+        },
+        "type": "object",
+        "title": "ROIRequest"
+      },
+      "ROIResponse": {
+        "properties": {
+          "total_subscribers_flagged": {
+            "type": "integer",
+            "title": "Total Subscribers Flagged"
+          },
+          "outreach_campaign_cost": {
+            "type": "number",
+            "title": "Outreach Campaign Cost"
+          },
+          "expected_saved_subscribers": {
+            "type": "integer",
+            "title": "Expected Saved Subscribers"
+          },
+          "gross_annual_revenue_saved": {
+            "type": "number",
+            "title": "Gross Annual Revenue Saved"
+          },
+          "net_campaign_profit": {
+            "type": "number",
+            "title": "Net Campaign Profit"
+          },
+          "campaign_roi_multiplier": {
+            "type": "number",
+            "title": "Campaign Roi Multiplier"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_subscribers_flagged",
+          "outreach_campaign_cost",
+          "expected_saved_subscribers",
+          "gross_annual_revenue_saved",
+          "net_campaign_profit",
+          "campaign_roi_multiplier",
+          "recommendation"
+        ],
+        "title": "ROIResponse"
+      },
+      "RiskFactor": {
+        "properties": {
+          "parameter": {
+            "type": "string",
+            "title": "Parameter"
+          },
+          "impact": {
+            "type": "string",
+            "title": "Impact"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "parameter",
+          "impact",
+          "detail",
+          "weight"
+        ],
+        "title": "RiskFactor"
+      },
+      "SimulationRequest": {
+        "properties": {
+          "customer": {
+            "$ref": "#/components/schemas/CustomerFeatures"
+          },
+          "switch_to_annual": {
+            "type": "boolean",
+            "title": "Switch To Annual",
+            "default": true
+          },
+          "reduce_inactivity_to_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reduce Inactivity To Days",
+            "default": 2
+          },
+          "boost_watch_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boost Watch Hours",
+            "default": 5.0
+          },
+          "resolve_support_tickets": {
+            "type": "boolean",
+            "title": "Resolve Support Tickets",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "customer"
+        ],
+        "title": "SimulationRequest"
+      },
+      "SimulationResponse": {
+        "properties": {
+          "baseline_probability": {
+            "type": "number",
+            "title": "Baseline Probability"
+          },
+          "baseline_risk_band": {
+            "type": "string",
+            "title": "Baseline Risk Band"
+          },
+          "simulated_probability": {
+            "type": "number",
+            "title": "Simulated Probability"
+          },
+          "simulated_risk_band": {
+            "type": "string",
+            "title": "Simulated Risk Band"
+          },
+          "risk_reduction_pct": {
+            "type": "number",
+            "title": "Risk Reduction Pct"
+          },
+          "annual_revenue_protected": {
+            "type": "number",
+            "title": "Annual Revenue Protected"
+          },
+          "interventions_applied": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Interventions Applied"
+          }
+        },
+        "type": "object",
+        "required": [
+          "baseline_probability",
+          "baseline_risk_band",
+          "simulated_probability",
+          "simulated_risk_band",
+          "risk_reduction_pct",
+          "annual_revenue_protected",
+          "interventions_applied"
+        ],
+        "title": "SimulationResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
