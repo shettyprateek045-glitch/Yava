@@ -44,6 +44,18 @@ Even an imperfect model is useful here, because the cost is asymmetric: a missed
 
 All five are real captures of this repository's own output and running app — the KPI numbers, ROC curve, and predicted risk score are exactly what the code produces, not mockups. The one screen not pictured here is `/docs` (Swagger) — the sandbox this was built in blocks the CDN Swagger UI loads its assets from, so that one didn't render; it's a one-click check once you run the API yourself (`uvicorn api:app` → open `/docs`).
 
+## Advanced Platform Features
+
+The project provides an operationalized Retention Intelligence Platform:
+
+- **Parameter Drivers & Explainable AI (XAI):** Real-time breakdown of churn risk drivers per subscriber (`days_since_last_login`, `contract_type`, `support_tickets`, `tenure_months`, `avg_watch_hours_week`) with prescriptive recommendations and Customer Lifetime Value (CLV) at risk.
+- **What-If Counterfactual Simulation Engine (`POST /simulate`):** Interactive sandbox allowing retention teams to test interventions (annual contract switch, inactivity drop, ticket resolution, engagement boost) and calculate delta risk reduction and protected ARR.
+- **Financial Retention ROI Matrix (`POST /retention/roi`):** Simulates retention campaign economics with configurable outreach costs, target cohorts, conversion rates, and ARR saved to calculate Net Profit and ROI multipliers.
+- **Dual-Model Comparison Engine (`POST /predict/compare`):** Evaluates subscribers across baseline v1 (Logistic Regression) and v2 (Stacking Ensemble) simultaneously with divergence analysis.
+- **Feature Distribution Drift Monitoring (`GET /monitoring/drift`):** Tracks live prediction distributions against baseline training statistics to detect data drift.
+- **Batch CSV Scoring (`POST /predict/csv`):** Secure multi-subscriber CSV upload with instant risk scoring, cohort summary cards, and tabular display.
+- **SQLite Governance & Audit Trail (`GET /predictions/history`):** Complete audit trail storing all live customer predictions with timestamps and inputs in SQLite (`data/predictions.db`).
+
 ## Tech Stack
 
 Python • Pandas • NumPy • Matplotlib • Seaborn • Scikit-learn • Plotly (via CDN, for the interactive dashboard) • FastAPI • Streamlit • Pytest • Docker • GitHub Actions
@@ -117,9 +129,9 @@ uvicorn api:app --reload --port 8000
 # 4. Or run the simpler Streamlit live demo instead
 streamlit run app.py
 
-# 5. Run the tests
-python -m unittest discover -s Week3_ML_Model_Development/tests -v   # model pipeline
-pytest tests/test_api.py -v                                          # API layer
+# 5. Run the test suite (33/33 tests passing)
+python -m unittest discover -s Week3_ML_Model_Development/tests -v   # model pipeline (12 tests)
+pytest tests/test_api.py -v                                          # API layer & endpoints (21 tests)
 
 # 6. Or run everything in Docker
 docker build -t churn-console .
@@ -132,7 +144,7 @@ docker run -p 8000:8000 churn-console
 - **Modest, intentional ROC-AUC ceiling (~0.63–0.66).** The synthetic data was generated with a realistic amount of noise, so this is expected, not a tuning failure — but it means the model's ranking is meaningfully better than random, not near-perfect.
 - **No temporal validation.** Everything here is a single train/test split on data generated at one point in time; a production system needs validation on data that evolves over time.
 - **The demo API is unauthenticated and uses permissive CORS (`*`)** — appropriate for a local portfolio demo, not for a real deployment.
-- **No persistence.** Predictions aren't stored anywhere; there's no history, audit log, or drift tracking yet.
+- **Demo authentication:** The API uses permissive CORS (`*`) and runs unauthenticated — appropriate for a local portfolio demo, requiring API keys or OAuth before enterprise deployment. (Persistence is handled via SQLite audit logging, and feature drift is tracked via `/monitoring/drift`).
 
 ## Future Enhancements
 

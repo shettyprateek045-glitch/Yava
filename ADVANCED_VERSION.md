@@ -92,8 +92,8 @@ diagnostic.
 ## Verified working
 
 - All 12 existing tests in `Week3_ML_Model_Development/tests/` still pass.
-- All 14 new tests in `tests/test_api.py` pass against the real
-  `churn_model_v2.joblib` and `churn_dataset.csv`.
+- All 21 API tests in `tests/test_api.py` pass (total 33/33 tests passing).
+
 - `uvicorn api:app` was run locally and every route was hit with `curl`:
   `/` (the control center), `/docs`, `/health`, `/model-info`, `/predict`,
   `/predict/batch`, and `/portfolio` all returned the expected status
