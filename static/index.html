@@ -148,7 +148,7 @@
   .btn-primary:disabled{ opacity:.6; cursor:progress; }
   .btn-secondary{
     background: var(--bg-panel-raised); color: var(--text-primary); border: 1px solid var(--border-hairline);
-    font-family: var(--font-body); font-weight:500; font-size:12px; padding:6px 14px; border-radius: var(--radius-sm); cursor:pointer;
+    font-family: var(--font-body); font-weight:500; font-size:12px; padding:7px 14px; border-radius: var(--radius-sm); cursor:pointer;
   }
   .btn-secondary:hover{ border-color: var(--data-cyan); }
   .form-error{ color: var(--signal-danger); font-size:12.5px; min-height:1.2em; margin: 10px 0 0; }
@@ -164,7 +164,7 @@
   .gauge-meta li{ display:flex; justify-content:space-between; color: var(--text-secondary); border-top:1px solid var(--border-hairline-soft); padding-top:6px; }
   .gauge-meta li span:last-child{ font-family: var(--font-mono); color: var(--text-primary); }
 
-  /* PARAMETER DRIVER CHIPS & RECOMMENDATION CARDS */
+  /* DRIVER CHIPS & RECOMMENDATIONS */
   .driver-chip{
     padding: 6px 10px; border-radius: var(--radius-sm); font-size: 11.5px; margin-bottom: 6px;
     display: flex; justify-content: space-between; align-items: center;
@@ -239,7 +239,7 @@
         <div class="brand-glyph">Y</div>
         <div>
           <span class="brand-title">Yava Retention</span>
-          <span class="brand-sub">Churn Control Center v2.1</span>
+          <span class="brand-sub">Churn Control Center v2.2</span>
         </div>
       </div>
 
@@ -247,8 +247,9 @@
         <li><button class="nav-item is-active" data-target="panel-overview" role="tab">Overview</button></li>
         <li><button class="nav-item" data-target="panel-predictor" role="tab">Risk Predictor & XAI</button></li>
         <li><button class="nav-item" data-target="panel-simulator" role="tab">What-If Simulator</button></li>
+        <li><button class="nav-item" data-target="panel-roi" role="tab">Financial ROI Matrix</button></li>
         <li><button class="nav-item" data-target="panel-history" role="tab">Batch & SQLite History</button></li>
-        <li><button class="nav-item" data-target="panel-health" role="tab">Model Health</button></li>
+        <li><button class="nav-item" data-target="panel-health" role="tab">Model Health & Drift</button></li>
         <li><button class="nav-item" data-target="panel-about" role="tab">About Project</button></li>
       </ul>
     </div>
@@ -371,7 +372,10 @@
               </label>
             </div>
 
-            <button type="submit" class="btn-primary">Predict Churn Risk & Generate Action Plan</button>
+            <div style="display:flex; gap:10px;">
+              <button type="submit" class="btn-primary" style="flex:1;">Predict Churn Risk & XAI</button>
+              <button type="button" id="compare-models-btn" class="btn-secondary" style="white-space:nowrap;">Compare v1 vs v2</button>
+            </div>
             <p class="form-error" id="predict-error"></p>
           </form>
 
@@ -386,6 +390,24 @@
               </div>
             </div>
             <ul class="gauge-meta" id="gauge-meta"></ul>
+
+            <!-- Dual Model Comparison Box -->
+            <div id="dual-model-box" style="display:none; margin-top:14px; padding:12px; background:var(--bg-panel-raised); border-radius:var(--radius-sm); border:1px solid var(--border-hairline);">
+              <h3 style="font-size:12px; font-weight:600; margin:0 0 8px; color:var(--data-cyan);">Dual Model Comparison (v1 vs v2)</h3>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:11.5px; margin-bottom:8px;">
+                <div style="background:var(--bg-panel); padding:8px; border-radius:4px;">
+                  <span style="color:var(--text-tertiary); display:block;">v1 Logistic Reg:</span>
+                  <strong id="v1-score" style="font-family:var(--font-mono); font-size:14px;">—</strong>
+                  <span id="v1-band" style="display:block; font-size:10.5px;">—</span>
+                </div>
+                <div style="background:var(--bg-panel); padding:8px; border-radius:4px;">
+                  <span style="color:var(--text-tertiary); display:block;">v2 Stacking Ensemble:</span>
+                  <strong id="v2-score" style="font-family:var(--font-mono); font-size:14px; color:var(--signal-amber);">—</strong>
+                  <span id="v2-band" style="display:block; font-size:10.5px;">—</span>
+                </div>
+              </div>
+              <p id="model-divergence-text" style="font-size:11px; color:var(--text-secondary); margin:0; line-height:1.4;"></p>
+            </div>
 
             <!-- Explainability Section -->
             <div id="xai-container" style="display:none; margin-top:16px; border-top:1px solid var(--border-hairline); padding-top:14px;">
@@ -462,7 +484,65 @@
       </section>
 
       <!-- =================================================================
-           4) BATCH CSV & SQLITE AUDIT TRAIL PANEL
+           4) FINANCIAL ROI MATRIX PANEL
+           ================================================================= -->
+      <section class="panel" id="panel-roi">
+        <div class="card">
+          <h2>Retention Campaign Financial ROI Calculator</h2>
+          <p class="card-sub">Translate churn probabilities into business profit by modeling retention intervention costs vs saved annual subscription recurring revenue.</p>
+
+          <div class="grid-2">
+            <div>
+              <h3 style="font-size:13px; margin-bottom:12px; color:var(--text-primary);">Campaign Assumptions</h3>
+              <div class="form-grid" style="background:var(--bg-panel-raised); padding:16px; border-radius:var(--radius-md); border:1px solid var(--border-hairline);">
+                <label>Outreach Cost / User ($)
+                  <input type="number" id="roi-cost" min="1" max="100" value="15">
+                </label>
+                <label>Retention Success Rate
+                  <select id="roi-rate">
+                    <option value="0.25">25% (Conservative)</option>
+                    <option value="0.35" selected>35% (Target Benchmark)</option>
+                    <option value="0.50">50% (High Engagement Offer)</option>
+                  </select>
+                </label>
+                <label>Target Plan Tier
+                  <select id="roi-plan">
+                    <option value="All" selected>All Plans</option>
+                    <option value="Basic">Basic Only</option>
+                    <option value="Standard">Standard Only</option>
+                    <option value="Premium">Premium Only</option>
+                  </select>
+                </label>
+                <label>Optional Budget Cap ($)
+                  <input type="number" id="roi-budget" placeholder="Unlimited">
+                </label>
+              </div>
+              <button id="calc-roi-btn" class="btn-primary" style="margin-top:16px;">Calculate Projected ROI</button>
+            </div>
+
+            <div style="background:var(--bg-panel-raised); padding:16px; border-radius:var(--radius-md); border:1px solid var(--border-hairline);">
+              <h3 style="font-size:13px; margin-bottom:12px; color:var(--text-primary);">Projected Financial ROI Summary</h3>
+              <div id="roi-results-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="kpi-card"><span class="kpi-label">Targeted Accounts</span><span class="kpi-value" id="roi-flagged">—</span></div>
+                <div class="kpi-card"><span class="kpi-label">Campaign Cost</span><span class="kpi-value" id="roi-cost-out">—</span></div>
+                <div class="kpi-card"><span class="kpi-label">Saved Subscribers</span><span class="kpi-value" id="roi-saved" style="color:var(--signal-safe); font-weight:700;">—</span></div>
+                <div class="kpi-card"><span class="kpi-label">Gross ARR Saved</span><span class="kpi-value" id="roi-gross" style="color:var(--signal-safe); font-weight:700;">—</span></div>
+                <div class="kpi-card" style="grid-column:span 2; background:rgba(79,191,151,0.08); border-color:rgba(79,191,151,0.3);">
+                  <span class="kpi-label" style="color:var(--signal-safe);">Net Campaign Profit & ROI Multiplier</span>
+                  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:4px;">
+                    <span id="roi-net" style="font-family:var(--font-mono); font-size:24px; font-weight:700; color:var(--signal-safe);">—</span>
+                    <span id="roi-mult" style="font-family:var(--font-mono); font-size:18px; color:var(--data-cyan); font-weight:600;">—</span>
+                  </div>
+                </div>
+              </div>
+              <p id="roi-recommendation-text" style="font-size:11.5px; color:var(--text-secondary); margin-top:10px;"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           5) BATCH CSV & SQLITE AUDIT TRAIL PANEL
            ================================================================= -->
       <section class="panel" id="panel-history">
         <!-- Batch CSV Upload Card -->
@@ -521,7 +601,7 @@
       </section>
 
       <!-- =================================================================
-           5) MODEL HEALTH PANEL
+           6) MODEL HEALTH & DRIFT MONITORING PANEL
            ================================================================= -->
       <section class="panel" id="panel-health">
         <div class="stat-strip">
@@ -530,6 +610,34 @@
           <div class="stat-cell"><span class="stat-label">Precision @ threshold</span><span class="stat-value" id="stat-precision">—</span></div>
           <div class="stat-cell"><span class="stat-label">Recall @ threshold</span><span class="stat-value" id="stat-recall">—</span></div>
           <div class="stat-cell"><span class="stat-label">F1 @ threshold</span><span class="stat-value" id="stat-f1">—</span></div>
+        </div>
+
+        <!-- Feature Drift Table -->
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+              <h2>Feature Distribution Drift Monitoring</h2>
+              <p class="card-sub" style="margin:0;">Tracks divergence between live scoring distributions and the training dataset baseline.</p>
+            </div>
+            <span id="drift-overall-badge" style="padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; background:rgba(79,191,151,0.2); color:var(--signal-safe);">Monitoring Active</span>
+          </div>
+
+          <div style="overflow-x:auto; margin-top:14px;">
+            <table class="data-table" id="drift-table">
+              <thead>
+                <tr>
+                  <th>Monitored Feature</th>
+                  <th>Training Baseline Mean</th>
+                  <th>Live Scoring Mean</th>
+                  <th>Divergence %</th>
+                  <th>Drift Health</th>
+                </tr>
+              </thead>
+              <tbody id="drift-tbody">
+                <tr><td colspan="5" style="text-align:center; color:var(--text-tertiary);">Checking drift metrics…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="card">
@@ -550,7 +658,7 @@
       </section>
 
       <!-- =================================================================
-           6) ABOUT PANEL
+           7) ABOUT PANEL
            ================================================================= -->
       <section class="panel" id="panel-about">
         <div class="card">
@@ -562,7 +670,7 @@
             <li><strong>Dataset:</strong> 5,000 synthetic subscriber records generated with realistic distributions (tenure, streaming habits, inactivity, and ticket friction).</li>
             <li><strong>Models:</strong> Baseline Logistic Regression (v1) and Stacking Ensemble with Random Forest & LightGBM (v2).</li>
             <li><strong>Decision Optimization:</strong> Tuned operational cutoff (0.206) maximizing recall (81.4%).</li>
-            <li><strong>Product Layer:</strong> FastAPI REST API + dark-mode instrument panel + SQLite prediction audit logging + What-If simulation engine.</li>
+            <li><strong>Product Layer:</strong> FastAPI REST API + dark-mode instrument panel + SQLite prediction audit logging + What-If simulation engine + Feature Drift Monitor + Financial ROI Matrix.</li>
           </ul>
         </div>
       </section>
@@ -583,8 +691,9 @@
     "panel-overview": "Portfolio Overview",
     "panel-predictor": "Risk Predictor & Explainability",
     "panel-simulator": "What-If Retention Sandbox",
+    "panel-roi": "Retention Campaign Financial ROI Matrix",
     "panel-history": "Batch Scoring & SQLite Audit History",
-    "panel-health": "Model Health & Thresholds",
+    "panel-health": "Model Health & Drift Monitoring",
     "panel-about": "About Project Architecture",
   };
 
@@ -595,6 +704,8 @@
       panels.forEach((p) => p.classList.toggle("is-active", p.id === target));
       topbarTitle.textContent = TITLES[target] || "Retention Console";
       if (target === "panel-history") loadHistory();
+      if (target === "panel-health") loadDriftMetrics();
+      if (target === "panel-roi") calculateRoi();
     });
   });
 
@@ -749,6 +860,23 @@
     needle.setAttribute("transform", `rotate(${angle} 110 120)`);
   }
 
+  function getFormPayload() {
+    const fd = new FormData(form);
+    return {
+      age: Number(fd.get("age")),
+      region: fd.get("region"),
+      tenure_months: Number(fd.get("tenure_months")),
+      plan_type: fd.get("plan_type"),
+      contract_type: fd.get("contract_type"),
+      payment_method: fd.get("payment_method"),
+      monthly_charge: Number(fd.get("monthly_charge")),
+      avg_watch_hours_week: Number(fd.get("avg_watch_hours_week")),
+      num_devices: Number(fd.get("num_devices")),
+      support_tickets: Number(fd.get("support_tickets")),
+      days_since_last_login: Number(fd.get("days_since_last_login")),
+    };
+  }
+
   // PREDICTOR SUBMIT
   const form = document.getElementById("predict-form");
   const errorEl = document.getElementById("predict-error");
@@ -767,20 +895,7 @@
     submitBtn.disabled = true;
     submitBtn.textContent = "Evaluating parameters…";
 
-    const fd = new FormData(form);
-    const payload = {
-      age: Number(fd.get("age")),
-      region: fd.get("region"),
-      tenure_months: Number(fd.get("tenure_months")),
-      plan_type: fd.get("plan_type"),
-      contract_type: fd.get("contract_type"),
-      payment_method: fd.get("payment_method"),
-      monthly_charge: Number(fd.get("monthly_charge")),
-      avg_watch_hours_week: Number(fd.get("avg_watch_hours_week")),
-      num_devices: Number(fd.get("num_devices")),
-      support_tickets: Number(fd.get("support_tickets")),
-      days_since_last_login: Number(fd.get("days_since_last_login")),
-    };
+    const payload = getFormPayload();
 
     try {
       const res = await fetch("/predict", {
@@ -838,7 +953,38 @@
       errorEl.textContent = err.message || "Failed to predict.";
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Predict Churn Risk & Generate Action Plan";
+      submitBtn.textContent = "Predict Churn Risk & XAI";
+    }
+  });
+
+  // COMPARE MODELS (v1 vs v2)
+  const compareBtn = document.getElementById("compare-models-btn");
+  compareBtn.addEventListener("click", async () => {
+    compareBtn.disabled = true;
+    compareBtn.textContent = "Comparing…";
+    const payload = getFormPayload();
+
+    try {
+      const res = await fetch("/predict/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Comparison failed");
+      const data = await res.json();
+
+      const box = document.getElementById("dual-model-box");
+      box.style.display = "block";
+      document.getElementById("v1-score").textContent = `${(data.v1_baseline.churn_probability * 100).toFixed(1)}%`;
+      document.getElementById("v1-band").textContent = `${data.v1_baseline.risk_band} (${data.v1_baseline.flagged ? "Flagged" : "Not Flagged"})`;
+      document.getElementById("v2-score").textContent = `${(data.v2_ensemble.churn_probability * 100).toFixed(1)}%`;
+      document.getElementById("v2-band").textContent = `${data.v2_ensemble.risk_band} (${data.v2_ensemble.flagged ? "Flagged" : "Not Flagged"})`;
+      document.getElementById("model-divergence-text").textContent = data.divergence_explanation;
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      compareBtn.disabled = false;
+      compareBtn.textContent = "Compare v1 vs v2";
     }
   });
 
@@ -848,21 +994,7 @@
     simBtn.disabled = true;
     simBtn.textContent = "Simulating interventions…";
 
-    const fd = new FormData(form);
-    const customer = {
-      age: Number(fd.get("age")),
-      region: fd.get("region"),
-      tenure_months: Number(fd.get("tenure_months")),
-      plan_type: fd.get("plan_type"),
-      contract_type: fd.get("contract_type"),
-      payment_method: fd.get("payment_method"),
-      monthly_charge: Number(fd.get("monthly_charge")),
-      avg_watch_hours_week: Number(fd.get("avg_watch_hours_week")),
-      num_devices: Number(fd.get("num_devices")),
-      support_tickets: Number(fd.get("support_tickets")),
-      days_since_last_login: Number(fd.get("days_since_last_login")),
-    };
-
+    const customer = getFormPayload();
     const payload = {
       customer: customer,
       switch_to_annual: document.getElementById("sim-contract-check").checked,
@@ -898,6 +1030,42 @@
       simBtn.textContent = "Run What-If Simulation";
     }
   });
+
+  // FINANCIAL ROI MATRIX
+  async function calculateRoi() {
+    const cost = Number(document.getElementById("roi-cost").value) || 15;
+    const rate = Number(document.getElementById("roi-rate").value) || 0.35;
+    const plan = document.getElementById("roi-plan").value;
+    const budgetVal = document.getElementById("roi-budget").value;
+    const budget = budgetVal ? Number(budgetVal) : null;
+
+    try {
+      const res = await fetch("/retention/roi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outreach_cost_per_customer: cost,
+          retention_success_rate: rate,
+          target_plan: plan,
+          campaign_budget: budget,
+        }),
+      });
+      if (!res.ok) throw new Error("ROI calculation failed");
+      const roi = await res.json();
+
+      document.getElementById("roi-flagged").textContent = fmtInt(roi.total_subscribers_flagged);
+      document.getElementById("roi-cost-out").textContent = `$${fmtInt(roi.outreach_campaign_cost)}`;
+      document.getElementById("roi-saved").textContent = fmtInt(roi.expected_saved_subscribers);
+      document.getElementById("roi-gross").textContent = `$${fmtInt(roi.gross_annual_revenue_saved)}`;
+      document.getElementById("roi-net").textContent = `$${fmtInt(roi.net_campaign_profit)}`;
+      document.getElementById("roi-mult").textContent = `${roi.campaign_roi_multiplier}x ROI`;
+      document.getElementById("roi-recommendation-text").textContent = roi.recommendation;
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  document.getElementById("calc-roi-btn").addEventListener("click", calculateRoi);
 
   // BATCH CSV
   const uploadBtn = document.getElementById("upload-csv-btn");
@@ -993,6 +1161,41 @@
       loadHistory();
     }
   });
+
+  // DRIFT MONITORING
+  async function loadDriftMetrics() {
+    try {
+      const res = await fetch("/monitoring/drift");
+      if (!res.ok) return;
+      const data = await res.json();
+      const badge = document.getElementById("drift-overall-badge");
+      if (data.status === "drift_detected") {
+        badge.textContent = "Drift Warning Detected";
+        badge.style.background = "rgba(232,163,61,0.2)";
+        badge.style.color = "var(--signal-amber)";
+      } else {
+        badge.textContent = "All Features Healthy";
+        badge.style.background = "rgba(79,191,151,0.2)";
+        badge.style.color = "var(--signal-safe)";
+      }
+
+      const tbody = document.getElementById("drift-tbody");
+      tbody.innerHTML = (data.metrics || []).map(m => {
+        const isAlert = m.drift_status !== "Normal";
+        return `
+          <tr>
+            <td><code>${m.feature}</code></td>
+            <td>${m.training_mean}</td>
+            <td>${m.inference_mean}</td>
+            <td>${m.mean_shift_pct}%</td>
+            <td><span style="color:${isAlert ? '#E8A33D' : '#4FBF97'}; font-weight:600;">${m.drift_status}</span></td>
+          </tr>
+        `;
+      }).join("");
+    } catch (e) {
+      console.warn(e);
+    }
+  }
 
   // MODEL HEALTH
   async function loadModelInfo() {

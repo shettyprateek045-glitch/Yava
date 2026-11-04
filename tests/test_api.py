@@ -229,3 +229,46 @@ def test_predict_csv_upload():
     assert body["total_rows"] == 2
     assert "revenue_at_risk" in body
     assert len(body["preview"]) == 2
+
+# ------------------------------------------------------------- Drift Monitoring
+@requires_data
+def test_monitoring_drift():
+    res = client.get("/monitoring/drift")
+    assert res.status_code == 200
+    body = res.json()
+    assert "metrics" in body
+    assert "overall_health" in body
+    assert len(body["metrics"]) >= 5
+
+
+# -------------------------------------------------------- Model Comparison (v1 vs v2)
+@requires_model
+def test_predict_compare_models():
+    res = client.post("/predict/compare", json=VALID_CUSTOMER)
+    assert res.status_code == 200
+    body = res.json()
+    assert "v1_baseline" in body
+    assert "v2_ensemble" in body
+    assert "models_agree_on_risk" in body
+    assert "divergence_explanation" in body
+    assert 0.0 <= body["v1_baseline"]["churn_probability"] <= 1.0
+    assert 0.0 <= body["v2_ensemble"]["churn_probability"] <= 1.0
+
+
+# --------------------------------------------------------- Retention ROI Matrix
+@requires_data
+@requires_model
+def test_retention_roi_calculation():
+    roi_payload = {
+        "outreach_cost_per_customer": 15.0,
+        "retention_success_rate": 0.40,
+        "target_plan": "All"
+    }
+    res = client.post("/retention/roi", json=roi_payload)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total_subscribers_flagged"] > 0
+    assert body["outreach_campaign_cost"] > 0
+    assert body["expected_saved_subscribers"] > 0
+    assert body["gross_annual_revenue_saved"] > 0
+    assert "recommendation" in body

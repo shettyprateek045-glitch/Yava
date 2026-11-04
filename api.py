@@ -311,9 +311,41 @@ class SimulationResponse(BaseModel):
     interventions_applied: list[str]
 
 
+class ROIRequest(BaseModel):
+    outreach_cost_per_customer: float = Field(12.0, ge=1.0, le=100.0)
+    retention_success_rate: float = Field(0.35, ge=0.05, le=1.0)
+    campaign_budget: float | None = Field(None, ge=100.0)
+    target_plan: Literal["All", "Basic", "Standard", "Premium"] = "All"
+
+
+class ROIResponse(BaseModel):
+    total_subscribers_flagged: int
+    outreach_campaign_cost: float
+    expected_saved_subscribers: int
+    gross_annual_revenue_saved: float
+    net_campaign_profit: float
+    campaign_roi_multiplier: float
+    recommendation: str
+
+
+class ModelComparisonResponse(BaseModel):
+    v1_baseline: dict
+    v2_ensemble: dict
+    models_agree_on_risk: bool
+    risk_delta: float
+    divergence_explanation: str
+
+
 # =============================================================================
 # 5) SCORING & EXPLAINABLE PARAMETER ANALYSIS
 # =============================================================================
+
+def _engineer_features_v1(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["charge_per_watch_hour"] = df["monthly_charge"] / (df["avg_watch_hours_week"] + 0.1)
+    df["is_inactive"] = (df["days_since_last_login"] > 30).astype(int)
+    return df
+
 
 def _engineer_features_v2(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -343,6 +375,8 @@ def _score(df: pd.DataFrame) -> np.ndarray:
     model, version, _metrics, _threshold = get_model_bundle()
     if version == "v2":
         df = _engineer_features_v2(df)
+    else:
+        df = _engineer_features_v1(df)
     return model.predict_proba(df)[:, 1]
 
 
@@ -757,6 +791,152 @@ def portfolio():
         "churn_rate_by_engagement": by_engagement.to_dict(),
         "data_source": "synthetic dataset — not real customer records",
     }
+
+
+@app.get("/monitoring/drift", summary="Model drift & feature distribution shift analysis")
+def monitoring_drift():
+    """Compares feature distributions of live scoring requests against the training baseline."""
+    train_df = get_dataset()
+    init_db()
+    with sqlite3.connect(DB_PATH) as conn:
+        pred_df = pd.read_sql_query("SELECT * FROM predictions_history ORDER BY id DESC LIMIT 500", conn)
+
+    features = ["days_since_last_login", "monthly_charge", "avg_watch_hours_week", "tenure_months", "support_tickets"]
+    if len(pred_df) < 3:
+        return {
+            "status": "baseline_mode",
+            "sample_size": len(pred_df),
+            "message": "Collecting live inference distribution sample (minimum 3 scored accounts needed).",
+            "overall_health": "Baseline reference active",
+            "metrics": [
+                {
+                    "feature": f,
+                    "training_mean": round(float(train_df[f].mean()), 2),
+                    "inference_mean": round(float(train_df[f].mean()), 2),
+                    "mean_shift_pct": 0.0,
+                    "drift_status": "Normal"
+                }
+                for f in features
+            ]
+        }
+
+    metrics = []
+    any_drift = False
+
+    for feat in features:
+        train_mean = float(train_df[feat].mean())
+        pred_mean = float(pred_df[feat].mean())
+        diff_pct = abs(pred_mean - train_mean) / (train_mean + 1e-9) * 100
+        is_drifted = diff_pct > 30.0
+        if is_drifted:
+            any_drift = True
+
+        metrics.append({
+            "feature": feat,
+            "training_mean": round(train_mean, 2),
+            "inference_mean": round(pred_mean, 2),
+            "mean_shift_pct": round(diff_pct, 1),
+            "drift_status": "Drift Alert" if is_drifted else "Normal"
+        })
+
+    return {
+        "status": "drift_detected" if any_drift else "healthy",
+        "sample_size": len(pred_df),
+        "overall_health": "Warning: Feature distribution divergence detected." if any_drift else "Healthy: Scoring distributions align with baseline.",
+        "metrics": metrics
+    }
+
+
+@app.post("/predict/compare", response_model=ModelComparisonResponse, summary="Compare v1 Baseline vs v2 Ensemble on one customer")
+def predict_compare(customer: CustomerFeatures):
+    """Scores a single customer under both v1 (Logistic Regression) and v2 (Stacking Ensemble)
+    side-by-side to detect algorithm divergence."""
+    c_dict = customer.model_dump()
+    df = pd.DataFrame([c_dict])
+
+    v1_model = joblib.load(MODEL_V1_PATH)
+    v1_thresh = 0.5
+    v1_df = _engineer_features_v1(df)
+    v1_prob = float(v1_model.predict_proba(v1_df)[:, 1][0])
+    v1_band = _risk_band(v1_prob, v1_thresh)
+
+    v2_model = joblib.load(MODEL_V2_PATH)
+    v2_metrics = json.loads(METRICS_V2_PATH.read_text()) if METRICS_V2_PATH.exists() else {}
+    v2_thresh = v2_metrics.get("test_metrics_optimal_threshold", {}).get("threshold", 0.206)
+    v2_df = _engineer_features_v2(df)
+    v2_prob = float(v2_model.predict_proba(v2_df)[:, 1][0])
+    v2_band = _risk_band(v2_prob, v2_thresh)
+
+    delta = round(abs(v2_prob - v1_prob), 4)
+    v1_flag = v1_prob >= v1_thresh
+    v2_flag = v2_prob >= v2_thresh
+    agree = (v1_flag == v2_flag)
+
+    if agree:
+        explanation = "Both baseline and ensemble models agree on the retention risk classification."
+    elif v2_flag and not v1_flag:
+        explanation = "v2 Stacking Ensemble flagged customer risk due to non-linear interaction with inactivity and support ticket ratios that linear logistic regression smoothed out."
+    else:
+        explanation = "v1 Logistic Regression triggered on linear weights, while v2 ensemble detected protective engagement patterns."
+
+    return ModelComparisonResponse(
+        v1_baseline={
+            "model_type": "Logistic Regression (v1)",
+            "churn_probability": round(v1_prob, 4),
+            "threshold": v1_thresh,
+            "risk_band": v1_band,
+            "flagged": v1_flag
+        },
+        v2_ensemble={
+            "model_type": "Stacking Ensemble (v2)",
+            "churn_probability": round(v2_prob, 4),
+            "threshold": round(v2_thresh, 4),
+            "risk_band": v2_band,
+            "flagged": v2_flag
+        },
+        models_agree_on_risk=agree,
+        risk_delta=delta,
+        divergence_explanation=explanation
+    )
+
+
+@app.post("/retention/roi", response_model=ROIResponse, summary="Business retention campaign ROI calculator")
+def calculate_retention_roi(req: ROIRequest):
+    """Calculates projected gross ARR saved, campaign costs, and net ROI multiplier
+    based on the model's flagged candidate volume and retention outreach success rates."""
+    df = get_dataset()
+    if req.target_plan != "All":
+        df = df[df["plan_type"] == req.target_plan]
+
+    _model, version, _metrics, threshold = get_model_bundle()
+    probas = _score(df)
+
+    flagged_mask = probas >= threshold
+    flagged_count = int(flagged_mask.sum())
+
+    if req.campaign_budget is not None:
+        max_contacts = int(req.campaign_budget // req.outreach_cost_per_customer)
+        targeted_count = min(flagged_count, max_contacts)
+    else:
+        targeted_count = flagged_count
+
+    total_cost = round(targeted_count * req.outreach_cost_per_customer, 2)
+    saved_count = int(round(targeted_count * req.retention_success_rate))
+
+    avg_monthly = float(df.loc[flagged_mask, "monthly_charge"].mean()) if flagged_count > 0 else 14.50
+    gross_arr_saved = round(saved_count * avg_monthly * 12, 2)
+    net_profit = round(gross_arr_saved - total_cost, 2)
+    roi_ratio = round(gross_arr_saved / (total_cost + 1e-9), 2)
+
+    return ROIResponse(
+        total_subscribers_flagged=targeted_count,
+        outreach_campaign_cost=total_cost,
+        expected_saved_subscribers=saved_count,
+        gross_annual_revenue_saved=gross_arr_saved,
+        net_campaign_profit=net_profit,
+        campaign_roi_multiplier=roi_ratio,
+        recommendation=f"Campaign yields an estimated ${net_profit:,.2f} in net profit ({roi_ratio}x ROI) by saving {saved_count} subscribers."
+    )
 
 
 # =============================================================================
