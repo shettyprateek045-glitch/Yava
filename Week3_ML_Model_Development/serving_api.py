@@ -34,6 +34,7 @@ from typing import Literal
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 BASE = Path(__file__).parent
@@ -120,6 +121,18 @@ DECISION_THRESHOLD = 0.5
 _interp_path = BASE / "outputs" / "advanced" / "interpretability_summary.json"
 if _interp_path.exists():
     DECISION_THRESHOLD = json.loads(_interp_path.read_text())["threshold_optimization"]["optimal_threshold"]
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    """Redirect root requests to interactive Swagger documentation so visitors
+    do not encounter a 404 Not Found error."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health")

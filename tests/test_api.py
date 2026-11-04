@@ -39,6 +39,29 @@ VALID_CUSTOMER = {
 }
 
 
+# ------------------------------------------------------------------ root & static
+def test_root_serves_html():
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "text/html" in res.headers.get("content-type", "")
+    assert "<!DOCTYPE html>" in res.text
+
+
+def test_favicon_returns_204():
+    res = client.get("/favicon.ico")
+    assert res.status_code == 204
+
+
+def test_serving_api_root_redirects_to_docs():
+    import sys
+    sys.path.insert(0, str(BASE / "Week3_ML_Model_Development"))
+    import serving_api
+    serving_client = TestClient(serving_api.app)
+    res = serving_client.get("/", follow_redirects=False)
+    assert res.status_code == 307
+    assert res.headers.get("location") == "/docs"
+
+
 # ------------------------------------------------------------------ health
 def test_health_ok():
     res = client.get("/health")

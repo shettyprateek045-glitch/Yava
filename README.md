@@ -3,6 +3,7 @@
   so the CI badge points at your actual Actions run.
 -->
 [![CI](https://github.com/shettyprateek045-glitch/Yava/actions/workflows/ci.yml/badge.svg)](https://github.com/shettyprateek045-glitch/Yava/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen)](https://shettyprateek045-glitch.github.io/Yava/)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -129,9 +130,9 @@ uvicorn api:app --reload --port 8000
 # 4. Or run the simpler Streamlit live demo instead
 streamlit run app.py
 
-# 5. Run the test suite (33/33 tests passing)
+# 5. Run the test suite (36/36 tests passing)
 python -m unittest discover -s Week3_ML_Model_Development/tests -v   # model pipeline (12 tests)
-pytest tests/test_api.py -v                                          # API layer & endpoints (21 tests)
+pytest tests/test_api.py -v                                          # API layer & endpoints (24 tests)
 
 # 6. Or run everything in Docker
 docker build -t churn-console .

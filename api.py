@@ -51,7 +51,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -940,7 +940,31 @@ def calculate_retention_roi(req: ROIRequest):
 
 
 # =============================================================================
-# 7) STATIC FRONTEND
+# 7) STATIC FRONTEND & ASSETS
 # =============================================================================
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
+
+@app.get("/static", include_in_schema=False)
+def redirect_static():
+    return RedirectResponse(url="/static/")
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def serve_root():
+    """Explicitly serves the retention console HTML so root requests never 404."""
+    for candidate in [STATIC_DIR / "index.html", BASE / "index.html"]:
+        if candidate.exists():
+            return HTMLResponse(content=candidate.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Retention Console</h1><p><a href='/docs'>Swagger API Docs</a></p>")
+
+
+ASSETS_DIR = BASE / "assets"
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
 if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=True), name="static_dir")
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
